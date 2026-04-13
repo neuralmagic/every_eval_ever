@@ -328,11 +328,21 @@ class LightEvalAdapter(BaseEvaluationAdapter):
         )
         evaluator_relationship = EvaluatorRelationship(evaluator_rel_str)
 
-        library_version = str(config_general.get('lighteval_sha', 'unknown'))
+        # Prefer CLI argument, then config value if meaningful
+        cli_version = metadata_args.get('eval_library_version', 'unknown')
+        config_version = str(config_general.get('lighteval_sha', 'unknown'))
+
+        # Use CLI version if provided and not 'unknown', otherwise use config
+        if cli_version != 'unknown':
+            library_version = cli_version
+        elif config_version not in ('?', 'unknown'):
+            library_version = config_version
+        else:
+            library_version = 'unknown'
+
         eval_library = EvalLibrary(
             name=metadata_args.get('eval_library_name', 'lighteval'),
-            version=library_version
-            or metadata_args.get('eval_library_version', 'unknown'),
+            version=library_version,
         )
 
         source_metadata = SourceMetadata(
