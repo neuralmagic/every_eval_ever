@@ -64,6 +64,7 @@ def _cmd_convert_lm_eval(args: argparse.Namespace) -> int:
         LMEvalInstanceLevelAdapter,
     )
     from every_eval_ever.converters.lm_eval.utils import find_samples_file
+    from every_eval_ever.merge_seeds import merge_seed_runs
 
     adapter = LMEvalAdapter()
     metadata = _common_metadata(args)
@@ -72,19 +73,29 @@ def _cmd_convert_lm_eval(args: argparse.Namespace) -> int:
     if args.inference_engine_version:
         metadata['inference_engine_version'] = args.inference_engine_version
 
-    log_path = Path(args.log_path)
-    metadata['parent_eval_output_dir'] = str(
-        log_path.parent if log_path.is_file() else log_path
-    )
-    if log_path.is_file():
-        logs = adapter.transform_from_file(log_path, metadata)
-    elif log_path.is_dir():
-        logs = adapter.transform_from_directory(log_path, metadata)
-    else:
-        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
-
     output_dir = Path(args.output_dir)
-    for log in logs:
+    all_logs = []
+
+    for log_path_str in args.log_path:
+        log_path = Path(log_path_str)
+        path_metadata = metadata.copy()
+        path_metadata['parent_eval_output_dir'] = str(
+            log_path.parent if log_path.is_file() else log_path
+        )
+        if log_path.is_file():
+            logs = adapter.transform_from_file(log_path, path_metadata)
+        elif log_path.is_dir():
+            logs = adapter.transform_from_directory(log_path, path_metadata)
+        else:
+            raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+        all_logs.extend(logs)
+
+    # If multiple paths provided, attempt to merge seed runs
+    if len(args.log_path) > 1:
+        all_logs = merge_seed_runs(all_logs)
+
+    for log in all_logs:
         eval_uuid = str(uuid.uuid4())
         if args.include_samples:
             meta = adapter.get_eval_metadata(log.evaluation_id)
@@ -104,7 +115,7 @@ def _cmd_convert_lm_eval(args: argparse.Namespace) -> int:
                     log.detailed_evaluation_results = detailed
         print(_write_log(log, output_dir, eval_uuid=eval_uuid))
 
-    print(f'Converted {len(logs)} evaluation log(s).')
+    print(f'Converted {len(all_logs)} evaluation log(s).')
     return 0
 
 
@@ -116,32 +127,37 @@ def _cmd_convert_inspect(args: argparse.Namespace) -> int:
 
     adapter = InspectAIAdapter()
     metadata = _common_metadata(args)
-
-    log_path = Path(args.log_path)
-    eval_uuids: list[str]
-    if log_path.is_file():
-        eval_uuids = [str(uuid.uuid4())]
-        metadata['file_uuid'] = eval_uuids[0]
-        logs = [adapter.transform_from_file(log_path, metadata)]
-    elif log_path.is_dir():
-        eval_paths = list_eval_logs(log_path.absolute().as_posix())
-        eval_uuids = [str(uuid.uuid4()) for _ in eval_paths]
-        metadata['file_uuids'] = eval_uuids
-        logs = adapter.transform_from_directory(log_path, metadata)
-    else:
-        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
-
-    if len(logs) != len(eval_uuids):
-        raise RuntimeError(
-            'Inspect conversion produced a different number of logs than '
-            'the generated UUID list.'
-        )
-
     output_dir = Path(args.output_dir)
-    for log, eval_uuid in zip(logs, eval_uuids):
-        print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+    all_logs = []
 
-    print(f'Converted {len(logs)} evaluation log(s).')
+    for log_path_str in args.log_path:
+        log_path = Path(log_path_str)
+        eval_uuids: list[str]
+        path_metadata = metadata.copy()
+
+        if log_path.is_file():
+            eval_uuids = [str(uuid.uuid4())]
+            path_metadata['file_uuid'] = eval_uuids[0]
+            logs = [adapter.transform_from_file(log_path, path_metadata)]
+        elif log_path.is_dir():
+            eval_paths = list_eval_logs(log_path.absolute().as_posix())
+            eval_uuids = [str(uuid.uuid4()) for _ in eval_paths]
+            path_metadata['file_uuids'] = eval_uuids
+            logs = adapter.transform_from_directory(log_path, path_metadata)
+        else:
+            raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+        if len(logs) != len(eval_uuids):
+            raise RuntimeError(
+                'Inspect conversion produced a different number of logs than '
+                'the generated UUID list.'
+            )
+
+        for log, eval_uuid in zip(logs, eval_uuids):
+            print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+            all_logs.append(log)
+
+    print(f'Converted {len(all_logs)} evaluation log(s).')
     return 0
 
 
@@ -150,46 +166,52 @@ def _cmd_convert_helm(args: argparse.Namespace) -> int:
 
     adapter = HELMAdapter()
     metadata = _common_metadata(args)
-    log_path = Path(args.log_path)
+    output_dir = Path(args.output_dir)
+    all_logs = []
 
-    eval_uuids: list[str]
-    if adapter._directory_contains_required_files(log_path):
-        eval_uuids = [str(uuid.uuid4())]
-        metadata['file_uuid'] = eval_uuids[0]
-    elif log_path.is_dir():
-        run_dirs = [
-            entry.path
-            for entry in os.scandir(log_path)
-            if entry.is_dir()
-            and adapter._directory_contains_required_files(entry.path)
-        ]
-        eval_uuids = [str(uuid.uuid4()) for _ in run_dirs]
-        metadata['file_uuids'] = eval_uuids
-    else:
-        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+    for log_path_str in args.log_path:
+        log_path = Path(log_path_str)
+        path_metadata = metadata.copy()
+        eval_uuids: list[str]
 
-    logs = adapter.transform_from_directory(
-        log_path,
-        output_path=str(Path(args.output_dir) / 'helm_output'),
-        metadata_args=metadata,
-    )
+        if adapter._directory_contains_required_files(log_path):
+            eval_uuids = [str(uuid.uuid4())]
+            path_metadata['file_uuid'] = eval_uuids[0]
+        elif log_path.is_dir():
+            run_dirs = [
+                entry.path
+                for entry in os.scandir(log_path)
+                if entry.is_dir()
+                and adapter._directory_contains_required_files(entry.path)
+            ]
+            eval_uuids = [str(uuid.uuid4()) for _ in run_dirs]
+            path_metadata['file_uuids'] = eval_uuids
+        else:
+            raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
 
-    if len(logs) != len(eval_uuids):
-        raise RuntimeError(
-            'HELM conversion produced a different number of logs than '
-            'the generated UUID list.'
+        logs = adapter.transform_from_directory(
+            log_path,
+            output_path=str(output_dir / 'helm_output'),
+            metadata_args=path_metadata,
         )
 
-    output_dir = Path(args.output_dir)
-    for log, eval_uuid in zip(logs, eval_uuids):
-        print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+        if len(logs) != len(eval_uuids):
+            raise RuntimeError(
+                'HELM conversion produced a different number of logs than '
+                'the generated UUID list.'
+            )
 
-    print(f'Converted {len(logs)} evaluation log(s).')
+        for log, eval_uuid in zip(logs, eval_uuids):
+            print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+            all_logs.append(log)
+
+    print(f'Converted {len(all_logs)} evaluation log(s).')
     return 0
 
 
 def _cmd_convert_lighteval(args: argparse.Namespace) -> int:
     from every_eval_ever.converters.lighteval.adapter import LightEvalAdapter
+    from every_eval_ever.merge_seeds import merge_seed_runs
 
     adapter = LightEvalAdapter()
     metadata = _common_metadata(args)
@@ -198,23 +220,33 @@ def _cmd_convert_lighteval(args: argparse.Namespace) -> int:
     if args.inference_engine_version:
         metadata['inference_engine_version'] = args.inference_engine_version
 
-    log_path = Path(args.log_path)
-    metadata['parent_eval_output_dir'] = str(
-        log_path.parent if log_path.is_file() else log_path
-    )
-    if log_path.is_file():
-        logs = adapter.transform_from_file(log_path, metadata)
-    elif log_path.is_dir():
-        logs = adapter.transform_from_directory(log_path, metadata)
-    else:
-        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
-
     output_dir = Path(args.output_dir)
-    for log in logs:
+    all_logs = []
+
+    for log_path_str in args.log_path:
+        log_path = Path(log_path_str)
+        path_metadata = metadata.copy()
+        path_metadata['parent_eval_output_dir'] = str(
+            log_path.parent if log_path.is_file() else log_path
+        )
+        if log_path.is_file():
+            logs = adapter.transform_from_file(log_path, path_metadata)
+        elif log_path.is_dir():
+            logs = adapter.transform_from_directory(log_path, path_metadata)
+        else:
+            raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+        all_logs.extend(logs)
+
+    # If multiple paths provided, attempt to merge seed runs
+    if len(args.log_path) > 1:
+        all_logs = merge_seed_runs(all_logs)
+
+    for log in all_logs:
         eval_uuid = str(uuid.uuid4())
         print(_write_log(log, output_dir, eval_uuid=eval_uuid))
 
-    print(f'Converted {len(logs)} evaluation log(s).')
+    print(f'Converted {len(all_logs)} evaluation log(s).')
     return 0
 
 
@@ -230,23 +262,28 @@ def _cmd_convert_swebench(args: argparse.Namespace) -> int:
     if args.agent_system:
         metadata['agent_system'] = args.agent_system
 
-    log_path = Path(args.log_path)
-    metadata['parent_eval_output_dir'] = str(
-        log_path.parent if log_path.is_file() else log_path
-    )
-    if log_path.is_file():
-        logs = adapter.transform_from_file(log_path, metadata)
-    elif log_path.is_dir():
-        logs = adapter.transform_from_directory(log_path, metadata)
-    else:
-        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
-
     output_dir = Path(args.output_dir)
-    for log in logs:
-        eval_uuid = str(uuid.uuid4())
-        print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+    all_logs = []
 
-    print(f'Converted {len(logs)} evaluation log(s).')
+    for log_path_str in args.log_path:
+        log_path = Path(log_path_str)
+        path_metadata = metadata.copy()
+        path_metadata['parent_eval_output_dir'] = str(
+            log_path.parent if log_path.is_file() else log_path
+        )
+        if log_path.is_file():
+            logs = adapter.transform_from_file(log_path, path_metadata)
+        elif log_path.is_dir():
+            logs = adapter.transform_from_directory(log_path, path_metadata)
+        else:
+            raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+        for log in logs:
+            eval_uuid = str(uuid.uuid4())
+            print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+            all_logs.append(log)
+
+    print(f'Converted {len(all_logs)} evaluation log(s).')
     return 0
 
 
@@ -328,8 +365,9 @@ def build_parser() -> argparse.ArgumentParser:
         source_parser.add_argument(
             '--log_path',
             '--log-path',
+            nargs='+',
             required=True,
-            help='Path to source log file or directory to convert.',
+            help='Path(s) to source log file(s) or directory(ies) to convert. Supports multiple paths.',
         )
         source_parser.add_argument(
             '--output_dir',
@@ -414,7 +452,7 @@ def build_parser() -> argparse.ArgumentParser:
                 '--agent_system',
                 '--agent-system',
                 default=None,
-                help='Agent/coding system used (e.g. mini-swe-agent).',
+                help='Agent/coding system used (mini-swe-agent).',
             )
 
     return parser
