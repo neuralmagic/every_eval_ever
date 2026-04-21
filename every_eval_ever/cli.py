@@ -218,6 +218,38 @@ def _cmd_convert_lighteval(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_convert_swebench(args: argparse.Namespace) -> int:
+    from every_eval_ever.converters.swebench.adapter import SWEBenchAdapter
+
+    adapter = SWEBenchAdapter()
+    metadata = _common_metadata(args)
+    if args.model_name:
+        metadata['model_name'] = args.model_name
+    if args.model_id:
+        metadata['model_id'] = args.model_id
+    if args.agent_system:
+        metadata['agent_system'] = args.agent_system
+
+    log_path = Path(args.log_path)
+    metadata['parent_eval_output_dir'] = str(
+        log_path.parent if log_path.is_file() else log_path
+    )
+    if log_path.is_file():
+        logs = adapter.transform_from_file(log_path, metadata)
+    elif log_path.is_dir():
+        logs = adapter.transform_from_directory(log_path, metadata)
+    else:
+        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+    output_dir = Path(args.output_dir)
+    for log in logs:
+        eval_uuid = str(uuid.uuid4())
+        print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+
+    print(f'Converted {len(logs)} evaluation log(s).')
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='every_eval_ever',
@@ -230,7 +262,8 @@ def build_parser() -> argparse.ArgumentParser:
             '  every_eval_ever convert lm_eval --log_path results.json --output_dir data\n'
             '  every_eval_ever convert inspect --log_path inspect_log.json --output_dir data\n'
             '  every_eval_ever convert helm --log_path helm_run_dir --output_dir data\n'
-            '  every_eval_ever convert lighteval --log_path results.json --output_dir data'
+            '  every_eval_ever convert lighteval --log_path results.json --output_dir data\n'
+            '  every_eval_ever convert swebench --log_path evaluation.json --model_name gpt-4 --output_dir data'
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -286,7 +319,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest='source', required=True
     )
 
-    for source in ['lm_eval', 'inspect', 'helm', 'lighteval']:
+    for source in ['lm_eval', 'inspect', 'helm', 'lighteval', 'swebench']:
         source_parser = convert_subparsers.add_parser(
             source,
             help=f'Convert {source} logs',
@@ -364,6 +397,26 @@ def build_parser() -> argparse.ArgumentParser:
                 help='Also convert lm-eval sample JSONL into instance-level output.',
             )
 
+        if source == 'swebench':
+            source_parser.add_argument(
+                '--model_name',
+                '--model-name',
+                default='unknown',
+                help='Name of the model evaluated (e.g., gpt-4, claude-3).',
+            )
+            source_parser.add_argument(
+                '--model_id',
+                '--model-id',
+                default=None,
+                help='Model ID (defaults to model_name if not provided).',
+            )
+            source_parser.add_argument(
+                '--agent_system',
+                '--agent-system',
+                default=None,
+                help='Agent/coding system used (e.g. mini-swe-agent).',
+            )
+
     return parser
 
 
@@ -400,6 +453,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_convert_helm(args)
         if args.source == 'lighteval':
             return _cmd_convert_lighteval(args)
+        if args.source == 'swebench':
+            return _cmd_convert_swebench(args)
 
     parser.print_help()
     return 1
