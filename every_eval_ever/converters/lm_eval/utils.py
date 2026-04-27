@@ -1,7 +1,43 @@
 """Utility functions for the lm-eval adapter."""
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+
+
+def config_run_seed_string(config: Dict[str, Any]) -> Optional[str]:
+    """Return the run seed from lm-eval top-level ``config`` as a decimal string.
+
+    Seeds live on ``config.gen_kwargs.seed`` (generation) and/or ``random_seed``
+    etc., not on per-task ``configs[task].generation_kwargs``. Merge needs this
+    on ``model_info.additional_details`` so :func:`merge_seed_runs` can populate
+    ``seed_values`` in merged ``score_details.details``.
+    """
+    gen_kwargs = config.get('gen_kwargs')
+    if isinstance(gen_kwargs, dict) and gen_kwargs.get('seed') is not None:
+        try:
+            return str(int(gen_kwargs['seed']))
+        except (ValueError, TypeError):
+            pass
+    for key in ('random_seed', 'numpy_seed', 'torch_seed', 'fewshot_seed'):
+        val = config.get(key)
+        if val is not None:
+            try:
+                return str(int(val))
+            except (ValueError, TypeError):
+                pass
+    return None
+
+
+def normalize_lm_eval_benchmark_dataset_name(task_or_dataset: str) -> str:
+    """Map per-subject lm-eval task keys to the benchmark name used for outputs.
+
+    lm-eval registers tasks like ``mmlu_pro_chat_biology``; the CLI writes files
+    under ``dataset_name`` from ``source_data``. Using the subject-specific key
+    would fragment outputs; collapse to ``mmlu_pro_chat`` for all matching tasks.
+    """
+    if task_or_dataset.startswith('mmlu_pro_chat_'):
+        return 'mmlu_pro_chat'
+    return task_or_dataset
 
 
 def parse_model_args(model_args: str | None) -> Dict[str, str]:

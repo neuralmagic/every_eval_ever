@@ -99,9 +99,14 @@ class LightEvalAdapter(BaseEvaluationAdapter):
         additional = {}
 
         # Add relevant fields from model_config to additional_details
-        # Exclude generation_parameters (handled separately in generation_config)
-        # and api_key (sensitive)
-        exclude_fields = {'model_name', 'generation_parameters', 'api_key'}
+        # Exclude generation_parameters (handled separately in generation_config),
+        # sensitive values, and path-like runtime settings.
+        exclude_fields = {
+            'model_name',
+            'generation_parameters',
+            'api_key',
+            'cache_dir',
+        }
 
         for key, value in model_config.items():
             if key not in exclude_fields and value is not None:

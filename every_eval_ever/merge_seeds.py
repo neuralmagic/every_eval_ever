@@ -74,11 +74,19 @@ def _make_grouping_key(log: EvaluationLog, result: EvaluationResult) -> tuple:
     )
 
 
-def merge_seed_runs(logs: List[EvaluationLog]) -> List[EvaluationLog]:
+def merge_seed_runs(
+    logs: List[EvaluationLog],
+    num_input_paths: Optional[int] = None,
+) -> List[EvaluationLog]:
     """Merge multiple seed runs into averaged evaluation logs.
 
     Args:
-        logs: List of EvaluationLog objects from different seed runs
+        logs: List of EvaluationLog objects from different seed runs (often one
+            log per benchmark *task* per results file).
+        num_input_paths: Number of distinct input result files (seeds). When each
+            file defines many tasks, this must be ``len(paths)``, not ``len(logs)``.
+            If omitted, defaults to ``len(logs)`` (only correct when each input
+            file yields exactly one EvaluationLog).
 
     Returns:
         List containing a single merged EvaluationLog with averaged scores
@@ -91,6 +99,10 @@ def merge_seed_runs(logs: List[EvaluationLog]) -> List[EvaluationLog]:
 
     if len(logs) == 1:
         return logs
+
+    expected_group_size = (
+        num_input_paths if num_input_paths is not None else len(logs)
+    )
 
     # Validate that all logs are for the same model
     model_ids = {log.model_info.id for log in logs}
@@ -112,7 +124,7 @@ def merge_seed_runs(logs: List[EvaluationLog]) -> List[EvaluationLog]:
     merged_results = []
 
     for key, result_group in grouped_results.items():
-        if len(result_group) != len(logs):
+        if len(result_group) != expected_group_size:
             # Not all seeds have this metric - skip or warn
             continue
 
@@ -195,7 +207,7 @@ def merge_seed_runs(logs: List[EvaluationLog]) -> List[EvaluationLog]:
             'start_time': min(start_times),
             'end_time': max(end_times),
         })
-    model_additional['num_seeds_merged'] = str(len(logs))
+    model_additional['num_seeds_merged'] = str(expected_group_size)
 
     # Create merged model_info
     merged_model_info = template_log.model_info.model_copy(

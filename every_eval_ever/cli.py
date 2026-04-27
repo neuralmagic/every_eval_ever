@@ -93,7 +93,9 @@ def _cmd_convert_lm_eval(args: argparse.Namespace) -> int:
 
     # If multiple paths provided, attempt to merge seed runs
     if len(args.log_path) > 1:
-        all_logs = merge_seed_runs(all_logs)
+        all_logs = merge_seed_runs(
+            all_logs, num_input_paths=len(args.log_path)
+        )
 
     for log in all_logs:
         eval_uuid = str(uuid.uuid4())
@@ -240,7 +242,9 @@ def _cmd_convert_lighteval(args: argparse.Namespace) -> int:
 
     # If multiple paths provided, attempt to merge seed runs
     if len(args.log_path) > 1:
-        all_logs = merge_seed_runs(all_logs)
+        all_logs = merge_seed_runs(
+            all_logs, num_input_paths=len(args.log_path)
+        )
 
     for log in all_logs:
         eval_uuid = str(uuid.uuid4())

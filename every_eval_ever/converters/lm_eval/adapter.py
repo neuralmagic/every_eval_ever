@@ -35,6 +35,8 @@ from .utils import (
     KNOWN_METRIC_BOUNDS,
     MODEL_TYPE_TO_INFERENCE_ENGINE,
     MODEL_TYPE_TO_INFERENCE_PLATFORM,
+    config_run_seed_string,
+    normalize_lm_eval_benchmark_dataset_name,
     parse_model_args,
 )
 
@@ -114,6 +116,10 @@ class LMEvalAdapter(BaseEvaluationAdapter):
         if model_args_str:
             additional['model_args'] = str(model_args_str)
 
+        seed_str = config_run_seed_string(config)
+        if seed_str is not None:
+            additional['seed'] = seed_str
+
         return ModelInfo(
             name=pretrained,
             id=pretrained,
@@ -154,7 +160,9 @@ class LMEvalAdapter(BaseEvaluationAdapter):
     def _build_source_data(self, task_config: Dict[str, Any], task_name: str):
         """Build source_data from task config."""
         dataset_path = task_config.get('dataset_path', '')
-        dataset_name = task_config.get('task', task_name)
+        dataset_name = normalize_lm_eval_benchmark_dataset_name(
+            task_config.get('task', task_name)
+        )
 
         if (
             dataset_path
@@ -328,7 +336,10 @@ class LMEvalAdapter(BaseEvaluationAdapter):
         if eval_timestamp is not None:
             eval_timestamp = str(int(eval_timestamp))
 
-        evaluation_id = f'{task_name}/{model_info.id}/{retrieved_timestamp}'
+        evaluation_benchmark = normalize_lm_eval_benchmark_dataset_name(task_name)
+        evaluation_id = (
+            f'{evaluation_benchmark}/{model_info.id}/{retrieved_timestamp}'
+        )
         evaluation_results = self._build_evaluation_results(raw_data, task_name)
 
         evaluator_rel_str = metadata_args.get(
