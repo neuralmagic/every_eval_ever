@@ -246,6 +246,7 @@ class LMEvalAdapter(BaseEvaluationAdapter):
             is_higher_better = higher_is_better.get(metric_name, True)
 
             bounds = KNOWN_METRIC_BOUNDS.get(metric_name)
+
             min_score = bounds[0] if bounds else None
             max_score = bounds[1] if bounds else None
 
@@ -267,11 +268,15 @@ class LMEvalAdapter(BaseEvaluationAdapter):
                 or task_results.get('samples')
                 or task_results.get('sample_len')
             )
-            if stderr_val is not None or num_samples:
+            # Only use stderr_val if it's a valid number (not 'N/A' or other strings)
+            valid_stderr = (
+                isinstance(stderr_val, (int, float)) and stderr_val is not None
+            )
+            if valid_stderr or num_samples:
                 uncertainty = Uncertainty(
                     standard_error=(
                         StandardError(value=stderr_val, method='bootstrap')
-                        if stderr_val is not None
+                        if valid_stderr
                         else None
                     ),
                     num_samples=num_samples,
