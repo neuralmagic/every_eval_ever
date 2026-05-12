@@ -231,6 +231,35 @@ def _cmd_convert_alpaca_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_average_scores(args: argparse.Namespace, current_time: str) -> int:
+    from collections import defaultdict
+    from every_eval_ever.eval_types import EvaluationLog
+
+    benchmark_dir = defaultdict(list)
+    output_dir = Path(args.output_dir)
+    for p in output_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        if p.stat().st_mtime >= current_time:
+            benchmark_dir[p.parts[1]].append(p)
+
+    from every_eval_ever.merge_seeds import merge_seed_runs
+    for benchmark, result_files in benchmark_dir.items():
+        print(benchmark)
+        logs = []
+        for result_file in result_files:
+            print(result_file)
+            log = EvaluationLog.model_validate_json(result_file.read_text(encoding='utf-8'))
+            logs.append(log)
+
+        all_logs = merge_seed_runs(logs)
+
+    for log in all_logs:
+        eval_uuid = str(uuid.uuid4())
+        print(f"Average log: {_write_log(log, output_dir, eval_uuid=eval_uuid)}")
+
+    return 0
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='every_eval_ever',
@@ -354,6 +383,14 @@ def build_parser() -> argparse.ArgumentParser:
             help='Evaluation library version recorded in eval_library.version.',
         )
 
+        source_parser.add_argument(
+            '--average_scores',
+            '--average-scores',
+            action='store_true',
+            default=False,
+            help='Compute the average scores of the evaluation logs for a given benchmark.',
+        )
+
         if source == 'alpaca_eval':
             source_parser.add_argument(
                 '--version',
@@ -392,6 +429,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    from datetime import datetime, timezone
+    current_time = datetime.now().timestamp()
+
     if args.command == 'validate':
         from every_eval_ever.validate import main as validate_main
 
@@ -414,13 +454,21 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == 'convert':
         if args.source == 'lm_eval':
-            return _cmd_convert_lm_eval(args)
+            _cmd_convert_lm_eval(args)
         if args.source == 'inspect':
-            return _cmd_convert_inspect(args)
+            _cmd_convert_inspect(args)
         if args.source == 'helm':
-            return _cmd_convert_helm(args)
+            _cmd_convert_helm(args)
         if args.source == 'alpaca_eval':
-            return _cmd_convert_alpaca_eval(args)
+            _cmd_convert_alpaca_eval(args)
+
+    if args.average_scores:
+        _cmd_average_scores(args, current_time)
+
+    return 0
+
+
+
 
     parser.print_help()
     return 1
