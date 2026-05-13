@@ -238,14 +238,7 @@ def _cmd_average_scores(args: argparse.Namespace, current_time: str) -> int:
     benchmark_dir = defaultdict(list)
     output_dir = Path(args.output_dir)
     # list files created in the output directory after script invocation
-    files = []
-    for p in output_dir.rglob("*"):
-        if not p.is_file():
-            continue
-        if p.stat().st_mtime >= current_time:
-            files.append(p)
-    files.sort(key=lambda x: x.stat().st_mtime)
-    for p in files:
+
     for p in output_dir.rglob("*"):
         if not p.is_file():
             continue
