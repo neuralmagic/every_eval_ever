@@ -73,4 +73,8 @@ KNOWN_METRIC_BOUNDS = {
     'rougeLsum': (0.0, 1.0),
     'ter': (0.0, None),
     'brier_score': (0.0, 1.0),
+    'prompt_level_strict_acc': (0.0, 1.0),
+    'inst_level_strict_acc': (0.0, 1.0),
+    'prompt_level_loose_acc': (0.0, 1.0),
+    'inst_level_loose_acc': (0.0, 1.0),
 }
