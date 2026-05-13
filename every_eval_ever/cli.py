@@ -237,6 +237,15 @@ def _cmd_average_scores(args: argparse.Namespace, current_time: str) -> int:
 
     benchmark_dir = defaultdict(list)
     output_dir = Path(args.output_dir)
+    # list files created in the output directory after script invocation
+    files = []
+    for p in output_dir.rglob("*"):
+        if not p.is_file():
+            continue
+        if p.stat().st_mtime >= current_time:
+            files.append(p)
+    files.sort(key=lambda x: x.stat().st_mtime)
+    for p in files:
     for p in output_dir.rglob("*"):
         if not p.is_file():
             continue
@@ -245,13 +254,15 @@ def _cmd_average_scores(args: argparse.Namespace, current_time: str) -> int:
 
     from every_eval_ever.merge_seeds import merge_seed_runs
     for benchmark, result_files in benchmark_dir.items():
-        print(benchmark)
         logs = []
         for result_file in result_files:
             print(result_file)
             log = EvaluationLog.model_validate_json(result_file.read_text(encoding='utf-8'))
-            logs.append(log)
+            if log.additional_details.get('group_subtasks', None) != benchmark :
+                # skip subtasks
+                continue
 
+            logs.append(log)
         all_logs = merge_seed_runs(logs)
 
     for log in all_logs:
