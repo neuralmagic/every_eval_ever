@@ -1,0 +1,260 @@
+{
+  "config_general": {
+    "lighteval_sha": "?",
+    "num_fewshot_seeds": 1,
+    "max_samples": null,
+    "job_id": "0",
+    "start_time": 7455098.686343914,
+    "end_time": 7465207.973786135,
+    "total_evaluation_time_secondes": "10109.287442221306",
+    "model_config": {
+      "model_name": "hosted_vllm/inference-optimization/Qwen3-235B-A22B-Thinking-2507.w4a16",
+      "generation_parameters": {
+        "num_blocks": null,
+        "block_size": null,
+        "early_stopping": null,
+        "repetition_penalty": null,
+        "frequency_penalty": null,
+        "length_penalty": null,
+        "presence_penalty": null,
+        "max_new_tokens": 32000,
+        "min_new_tokens": null,
+        "seed": 3344,
+        "stop_tokens": null,
+        "temperature": 0.6,
+        "top_k": 20,
+        "min_p": 0.0,
+        "top_p": 0.95,
+        "truncate_prompt": null,
+        "cache_implementation": null,
+        "response_format": null
+      },
+      "system_prompt": null,
+      "cache_dir": "~/.cache/huggingface/lighteval",
+      "provider": "hosted_vllm",
+      "base_url": "http://0.0.0.0:8000/v1",
+      "api_key": "",
+      "concurrent_requests": 16,
+      "verbose": false,
+      "max_model_length": null,
+      "api_max_retry": 8,
+      "api_retry_sleep": 1.0,
+      "api_retry_multiplier": 2.0,
+      "timeout": 1200.0
+    },
+    "model_name": "hosted_vllm/inference-optimization/Qwen3-235B-A22B-Thinking-2507.w4a16"
+  },
+  "results": {
+    "gpqa:diamond|0": {
+      "gpqa_pass@k:k=1": 0.7525252525252525,
+      "gpqa_pass@k:k=1_stderr": 0.03074630074212453
+    },
+    "aime25|0": {
+      "pass@k:k=1&n=1": 0.8333333333333334,
+      "pass@k:k=1&n=1_stderr": 0.06920456654478331,
+      "avg@n:n=1": 0.8333333333333334,
+      "avg@n:n=1_stderr": 0.06920456654478331
+    },
+    "math_500|0": {
+      "pass@k:k=1&n=1": 0.904,
+      "pass@k:k=1&n=1_stderr": 0.013187715179792425
+    },
+    "all": {
+      "gpqa_pass@k:k=1": 0.7525252525252525,
+      "gpqa_pass@k:k=1_stderr": 0.03074630074212453,
+      "pass@k:k=1&n=1": 0.8686666666666667,
+      "pass@k:k=1&n=1_stderr": 0.041196140862287865,
+      "avg@n:n=1": 0.8333333333333334,
+      "avg@n:n=1_stderr": 0.06920456654478331
+    }
+  },
+  "versions": {},
+  "config_tasks": {
+    "gpqa:diamond|0": {
+      "name": "gpqa:diamond",
+      "prompt_function": "gpqa_instruct_prompt",
+      "hf_repo": "Idavidrein/gpqa",
+      "hf_subset": "gpqa_diamond",
+      "metrics": [
+        {
+          "metric_name": "gpqa_pass@k:k=1",
+          "higher_is_better": true,
+          "category": "GENERATIVE",
+          "sample_level_fn": "PassAtK(normalize=None, strip_strings=False, compute_score=compute, type_exact_match=None, k=1, n=1, attribute_must_be_set=['k'])",
+          "corpus_level_fn": "mean",
+          "batched_compute": false
+        }
+      ],
+      "solver": [
+        "solve"
+      ],
+      "scorer": "score",
+      "sample_fields": "record_to_sample",
+      "sample_to_fewshot": "sample_to_fewshot",
+      "filter": null,
+      "hf_revision": null,
+      "hf_filter": null,
+      "hf_avail_splits": [
+        "train"
+      ],
+      "evaluation_splits": [
+        "train"
+      ],
+      "few_shots_split": null,
+      "few_shots_select": null,
+      "generation_size": 32768,
+      "generation_grammar": null,
+      "stop_sequence": [],
+      "num_samples": null,
+      "original_num_docs": -1,
+      "effective_num_docs": -1,
+      "must_remove_duplicate_docs": false,
+      "num_fewshots": 0,
+      "version": 1
+    },
+    "aime25|0": {
+      "name": "aime25",
+      "prompt_function": "aime_prompt",
+      "hf_repo": "yentinglin/aime_2025",
+      "hf_subset": "default",
+      "metrics": [
+        {
+          "metric_name": "pass@k:k=1&n=1",
+          "higher_is_better": true,
+          "category": "GENERATIVE",
+          "sample_level_fn": "PassAtK(normalize=None, strip_strings=True, compute_score=compute, type_exact_match=None, k=1, n=1, attribute_must_be_set=['k'])",
+          "corpus_level_fn": "mean",
+          "batched_compute": false
+        },
+        {
+          "metric_name": "avg@n:n=1",
+          "higher_is_better": true,
+          "category": "GENERATIVE",
+          "sample_level_fn": "AvgAtN(normalize=None, strip_strings=False, compute_score=compute, type_exact_match=None, n=1, attribute_must_be_set=['n'])",
+          "corpus_level_fn": "mean",
+          "batched_compute": false
+        }
+      ],
+      "solver": [
+        "solve",
+        "solve"
+      ],
+      "scorer": "score",
+      "sample_fields": "record_to_sample",
+      "sample_to_fewshot": null,
+      "filter": null,
+      "hf_revision": null,
+      "hf_filter": null,
+      "hf_avail_splits": [
+        "train"
+      ],
+      "evaluation_splits": [
+        "train"
+      ],
+      "few_shots_split": null,
+      "few_shots_select": null,
+      "generation_size": null,
+      "generation_grammar": null,
+      "stop_sequence": [],
+      "num_samples": null,
+      "original_num_docs": -1,
+      "effective_num_docs": -1,
+      "must_remove_duplicate_docs": false,
+      "num_fewshots": 0,
+      "version": 2
+    },
+    "math_500|0": {
+      "name": "math_500",
+      "prompt_function": "math_500_prompt",
+      "hf_repo": "HuggingFaceH4/MATH-500",
+      "hf_subset": "default",
+      "metrics": [
+        {
+          "metric_name": "pass@k:k=1&n=1",
+          "higher_is_better": true,
+          "category": "GENERATIVE",
+          "sample_level_fn": "PassAtK(normalize=None, strip_strings=True, compute_score=compute, type_exact_match=None, k=1, n=1, attribute_must_be_set=['k'])",
+          "corpus_level_fn": "mean",
+          "batched_compute": false
+        }
+      ],
+      "solver": [
+        "solve",
+        "solve"
+      ],
+      "scorer": "score",
+      "sample_fields": "record_to_sample",
+      "sample_to_fewshot": null,
+      "filter": null,
+      "hf_revision": null,
+      "hf_filter": null,
+      "hf_avail_splits": [
+        "test"
+      ],
+      "evaluation_splits": [
+        "test"
+      ],
+      "few_shots_split": null,
+      "few_shots_select": null,
+      "generation_size": 32768,
+      "generation_grammar": null,
+      "stop_sequence": [],
+      "num_samples": null,
+      "original_num_docs": -1,
+      "effective_num_docs": -1,
+      "must_remove_duplicate_docs": false,
+      "num_fewshots": 0,
+      "version": 2
+    }
+  },
+  "summary_tasks": {
+    "gpqa:diamond|0": {
+      "hashes": {
+        "hash_examples": "7e6ab78504360639",
+        "hash_full_prompts": "ef46db3751d8e999",
+        "hash_input_tokens": "42cba4b3cd185311",
+        "hash_cont_tokens": "42cba4b3cd185311"
+      },
+      "truncated": 0,
+      "non_truncated": 0,
+      "padded": 0,
+      "non_padded": 0
+    },
+    "aime25|0": {
+      "hashes": {
+        "hash_examples": "8df1bb48b826e206",
+        "hash_full_prompts": "ef46db3751d8e999",
+        "hash_input_tokens": "f04b89be03da9f73",
+        "hash_cont_tokens": "f04b89be03da9f73"
+      },
+      "truncated": 0,
+      "non_truncated": 0,
+      "padded": 0,
+      "non_padded": 0
+    },
+    "math_500|0": {
+      "hashes": {
+        "hash_examples": "9f076bfe85016b9f",
+        "hash_full_prompts": "ef46db3751d8e999",
+        "hash_input_tokens": "6e2146e74832427e",
+        "hash_cont_tokens": "6e2146e74832427e"
+      },
+      "truncated": 0,
+      "non_truncated": 0,
+      "padded": 0,
+      "non_padded": 0
+    }
+  },
+  "summary_general": {
+    "hashes": {
+      "hash_examples": "9f27d13c4db0f7b7",
+      "hash_full_prompts": "15a9db8cd5f71ff9",
+      "hash_input_tokens": "a81faa1610a8e7f6",
+      "hash_cont_tokens": "a81faa1610a8e7f6"
+    },
+    "truncated": 0,
+    "non_truncated": 0,
+    "padded": 0,
+    "non_padded": 0
+  }
+}
