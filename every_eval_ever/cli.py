@@ -251,16 +251,12 @@ def _cmd_average_scores(args: argparse.Namespace, current_time: str) -> int:
         for result_file in result_files:
             print(result_file)
             log = EvaluationLog.model_validate_json(result_file.read_text(encoding='utf-8'))
-            if log.additional_details.get('group_subtasks', None) != benchmark :
-                # skip subtasks
-                continue
-
             logs.append(log)
         all_logs = merge_seed_runs(logs)
 
-    for log in all_logs:
-        eval_uuid = str(uuid.uuid4())
-        print(f"Average log: {_write_log(log, output_dir, eval_uuid=eval_uuid)}")
+        for log in all_logs:
+            eval_uuid = str(uuid.uuid4())
+            print(f"Average {benchmark}: {_write_log(log, output_dir, eval_uuid=eval_uuid)}")
 
     return 0
 
@@ -274,6 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             'Examples:\n'
             '  every_eval_ever convert lm_eval --log_path results.json --output_dir data\n'
+            '  every_eval_ever convert lm_eval --log_path results.json --output_dir data\n --average-scores'
             '  every_eval_ever convert inspect --log_path inspect_log.json --output_dir data\n'
             '  every_eval_ever convert helm --log_path helm_run_dir --output_dir data'
         ),
