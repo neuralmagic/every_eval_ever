@@ -20,25 +20,28 @@ def _extract_seed_from_log(log: EvaluationLog) -> Optional[int]:
     """Extract seed value from generation_config.additional_details."""
 
     for result in log.evaluation_results:
-        if result.generation_config.additional_details:
-            gen_details = result.generation_config.additional_details
-            for key in ['seed', 'random_seed']:
-                if key in gen_details:
-                    try:
-                        seed_str = gen_details[key]
-                        # Handle JSON-encoded values
-                        if isinstance(seed_str, str):
-                            if seed_str.isdigit():
-                                return int(seed_str)
-                            # Try parsing JSON
-                            try:
-                                seed_val = json.loads(seed_str)
-                                return int(seed_val)
-                            except (json.JSONDecodeError, ValueError, TypeError):
-                                pass
-                        return int(seed_str)
-                    except (ValueError, TypeError):
-                        pass
+        try:
+            if result.generation_config.additional_details:
+                gen_details = result.generation_config.additional_details
+                for key in ['seed', 'random_seed']:
+                    if key in gen_details:
+                        try:
+                            seed_str = gen_details[key]
+                            # Handle JSON-encoded values
+                            if isinstance(seed_str, str):
+                                if seed_str.isdigit():
+                                    return int(seed_str)
+                                # Try parsing JSON
+                                try:
+                                    seed_val = json.loads(seed_str)
+                                    return int(seed_val)
+                                except (json.JSONDecodeError, ValueError, TypeError):
+                                    pass
+                            return int(seed_str)
+                        except (ValueError, TypeError):
+                            pass
+        except:
+            pass
 
     return None
 
@@ -98,7 +101,6 @@ def merge_seed_runs(
 
     for log in logs:
         seed = _extract_seed_from_log(log)
-        print(seed)
         for result in log.evaluation_results:
             key = _make_grouping_key(log, result)
             grouped_results[key].append((result, seed, log))
@@ -139,9 +141,11 @@ def merge_seed_runs(
         # Create merged result with additional seed details
         additional_seed_details = {
             'seed_scores': json.dumps(scores),
-            'seed_values': json.dumps(seed_values) if seed_values else json.dumps([]),
             'evaluation_timestamps': json.dumps(evaluation_timestamps),
         }
+
+        if seed_values:
+            additional_seed_details['seed_values'] = json.dumps(seed_values)
 
         # Preserve original details if any, and add seed info
         score_details_dict = dict(template_result.score_details.details or {})

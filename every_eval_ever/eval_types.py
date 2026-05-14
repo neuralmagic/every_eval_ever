@@ -518,8 +518,3 @@ class EvaluationLog(BaseModel):
         None,
         description='Reference to the evaluation results for all individual samples in the evaluation',
     )
-
-    additional_details: dict[str, str] | None = Field(
-        None,
-        description='Additional parameters (key-value pairs, all values must be strings)',
-    )
