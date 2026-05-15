@@ -1,4 +1,4 @@
-"""Adapter for converting lm-evaluation-harness output to every_eval_ever format."""
+"""Adapter for converting lighteval output to every_eval_ever format."""
 
 import json
 from pathlib import Path
@@ -33,67 +33,54 @@ from every_eval_ever.eval_types import (
 
 from .utils import (
     KNOWN_METRIC_BOUNDS,
-    MODEL_TYPE_TO_INFERENCE_ENGINE,
-    MODEL_TYPE_TO_INFERENCE_PLATFORM,
-    parse_model_args,
+    PROVIDER_TO_INFERENCE_ENGINE,
+    PROVIDER_TO_INFERENCE_PLATFORM,
+    parse_model_name,
 )
 
 
-class LMEvalAdapter(BaseEvaluationAdapter):
-    """Converts lm-evaluation-harness results to every_eval_ever format."""
+class LightEvalAdapter(BaseEvaluationAdapter):
+    """Converts lighteval results to every_eval_ever format."""
 
     def __init__(self, strict_validation: bool = True):
         super().__init__(strict_validation)
-        # Stores per-log metadata so callers can find sample files after transform.
-        # Keyed by evaluation_id -> {"parent_dir": str, "task_name": str}
-        self._eval_metadata = {}
-
-    def get_eval_metadata(self, evaluation_id: str) -> Dict[str, Any]:
-        """Return stored metadata for a given evaluation_id."""
-        return self._eval_metadata.get(evaluation_id, {})
 
     @property
     def metadata(self) -> AdapterMetadata:
         return AdapterMetadata(
-            name='lm-eval-adapter',
+            name='lighteval-adapter',
             version='0.1.0',
-            supported_library_versions=['0.4.*'],
-            description='Converts lm-evaluation-harness output to every_eval_ever format',
+            supported_library_versions=['*'],
+            description='Converts lighteval output to every_eval_ever format',
         )
 
     @property
     def supported_library(self) -> SupportedLibrary:
-        return SupportedLibrary.LM_EVAL
+        return SupportedLibrary.lighteval
 
     def _extract_model_info(
         self,
         raw_data: Dict[str, Any],
         metadata_args: Optional[Dict[str, Any]] = None,
     ) -> ModelInfo:
-        """Extract model information from lm-eval results."""
+        """Extract model information from lighteval results."""
         metadata_args = metadata_args or {}
-        config = raw_data.get('config', {})
-        model_type = config.get('model', '')
-        model_args_str = config.get('model_args', '')
+        config = raw_data.get('config_general', {})
+        model_config = config.get('model_config', {})
 
-        if isinstance(model_args_str, dict):
-            model_args = model_args_str
-        else:
-            model_args = parse_model_args(model_args_str)
-
-        model_name = raw_data.get('model_name', '')
-        pretrained = model_args.get('pretrained', model_name)
+        model_name = config.get('model_name', '')
+        provider, pretrained = parse_model_name(model_name)
 
         developer = None
         if '/' in pretrained:
             developer = pretrained.split('/')[0]
 
-        inference_platform = MODEL_TYPE_TO_INFERENCE_PLATFORM.get(model_type)
+        inference_platform = PROVIDER_TO_INFERENCE_PLATFORM.get(provider)
 
-        # Determine inference engine name: CLI override > auto-detection from model type
+        # Determine inference engine name: CLI override > auto-detection from provider
         engine_name = metadata_args.get(
             'inference_engine'
-        ) or MODEL_TYPE_TO_INFERENCE_ENGINE.get(model_type)
+        ) or PROVIDER_TO_INFERENCE_ENGINE.get(provider)
         engine_version = metadata_args.get('inference_engine_version')
 
         inference_engine = None
@@ -103,17 +90,26 @@ class LMEvalAdapter(BaseEvaluationAdapter):
             )
 
         additional = {}
-        if config.get('model_num_parameters'):
-            additional['num_parameters'] = str(config['model_num_parameters'])
-        if config.get('model_dtype'):
-            additional['dtype'] = str(config['model_dtype'])
-        if config.get('model_revision'):
-            additional['revision'] = str(config['model_revision'])
-        if config.get('model_sha'):
-            additional['sha'] = str(config['model_sha'])
-        if model_args_str:
-            additional['model_args'] = str(model_args_str)
 
+        exclude_fields = {
+            'model_name',
+            'generation_parameters',
+            'api_key',
+            'cache_dir',
+        }
+
+        for key, value in model_config.items():
+            if key not in exclude_fields and value is not None:
+                if isinstance(value, (str, int, float, bool)):
+                    additional[key] = str(value)
+                elif isinstance(value, dict):
+                    additional[key] = json.dumps(value)
+                elif isinstance(value, list):
+                    additional[key] = json.dumps(value)
+
+        if provider:
+            additional['provider'] = provider
+        #breakpoint()
         return ModelInfo(
             name=pretrained,
             id=pretrained,
@@ -124,51 +120,67 @@ class LMEvalAdapter(BaseEvaluationAdapter):
         )
 
     def _get_tasks(self, raw_data: Dict[str, Any]) -> List[str]:
-        """Get task names that have actual metric results (leaf tasks and groups)."""
+        """Get task names that have actual metric results.
+
+        lighteval uses format like "aime25|0" for tasks.
+        We extract the base task name without the suffix.
+        """
         results = raw_data.get('results', {})
         tasks = []
         for task_name, task_results in results.items():
-            # Skip group placeholder entries (only have alias and " " keys)
-            non_alias_keys = [k for k in task_results if k != 'alias']
-            if non_alias_keys == [' ']:
+            if task_name == 'all':
                 continue
-            # Skip if no numeric metric values
             has_metric = any(
                 isinstance(v, (int, float))
                 for k, v in task_results.items()
-                if k
-                not in (
-                    'alias',
-                    'samples',
-                    'name',
-                    'sample_len',
-                    'sample_count',
-                )
-                and '_stderr,' not in k
+                if '_stderr' not in k
             )
             if not has_metric:
                 continue
             tasks.append(task_name)
         return tasks
 
-    def _build_source_data(self, task_config: Dict[str, Any], task_name: str):
-        """Build source_data from task config."""
-        dataset_path = task_config.get('dataset_path', '')
-        dataset_name = task_config.get('task', task_name)
+    def _get_task_config(
+        self, raw_data: Dict[str, Any], task_name: str
+    ) -> Dict[str, Any]:
+        """Resolve ``config_tasks[task_key]`` (same key as in ``results``).
 
-        if (
-            dataset_path
-            and '/' in str(dataset_path)
-            and not str(dataset_path).startswith('/')
-        ):
+        Falls back to ``config_tasks[task_basename]`` when the key uses a
+        ``|seed`` suffix but the config is stored under the bare task name.
+        """
+        cfg_tasks = raw_data.get('config_tasks') or {}
+        if task_name in cfg_tasks:
+            return cfg_tasks[task_name]
+        base = task_name.split('|')[0]
+        if base != task_name and base in cfg_tasks:
+            return cfg_tasks[base]
+        return {}
+
+    def _build_source_data(self, task_config: Dict[str, Any], task_name: str):
+        """Build ``EvaluationResult.source_data`` (HF variant sets ``hf_repo``).
+
+        Serialized path: ``evaluation_results[].source_data.hf_repo`` when
+        ``source_type`` is ``hf_dataset``.
+        """
+
+        path = task_config.get('hf_repo')
+        dataset_name = task_config.get('name', task_name)
+        #breakpoint()
+        if path:
+            hf_subset = task_config.get('hf_subset')
+            splits = task_config.get('evaluation_splits', [])
+            hf_split = splits[0] if splits else None
+
+            extra: Dict[str, str] = {}
+            if hf_subset and hf_subset != 'default':
+                extra['hf_subset'] = str(hf_subset)
+
             return SourceDataHf(
                 dataset_name=dataset_name,
                 source_type='hf_dataset',
-                hf_repo=dataset_path,
-                hf_split=(
-                    task_config.get('test_split')
-                    or task_config.get('validation_split')
-                ),
+                hf_repo=str(path),
+                hf_split=hf_split,
+                additional_details=extra if extra else None,
             )
         return SourceDataPrivate(
             dataset_name=dataset_name,
@@ -176,26 +188,31 @@ class LMEvalAdapter(BaseEvaluationAdapter):
         )
 
     def _build_generation_config(
-        self, task_config: Dict[str, Any]
+        self, raw_data: Dict[str, Any], task_config: Dict[str, Any]
     ) -> Optional[GenerationConfig]:
-        """Build generation config from task config."""
-        gen_kwargs = task_config.get('generation_kwargs', {})
-        if not gen_kwargs:
+        """Build generation config from lighteval config."""
+        config_general = raw_data.get('config_general', {})
+        model_config = config_general.get('model_config', {})
+        gen_params = model_config.get('generation_parameters', {})
+
+        if not gen_params:
             return None
 
         args = GenerationArgs(
-            temperature=gen_kwargs.get('temperature'),
-            top_p=gen_kwargs.get('top_p'),
-            top_k=gen_kwargs.get('top_k'),
-            max_tokens=gen_kwargs.get('max_gen_toks'),
+            temperature=gen_params.get('temperature'),
+            top_p=gen_params.get('top_p'),
+            top_k=gen_params.get('top_k'),
+            max_tokens=gen_params.get('max_new_tokens'),
         )
 
         additional = {}
-        for k, v in gen_kwargs.items():
-            if k not in ('temperature', 'top_p', 'top_k', 'max_gen_toks'):
-                additional[k] = json.dumps(v) if not isinstance(v, str) else v
-        if task_config.get('num_fewshot') is not None:
-            additional['num_fewshot'] = str(task_config['num_fewshot'])
+        for k, v in gen_params.items():
+            if k not in ('temperature', 'top_p', 'top_k', 'max_new_tokens'):
+                if v is not None:
+                    additional[k] = json.dumps(v) if not isinstance(v, str) else v
+
+        if task_config.get('num_fewshots') is not None:
+            additional['num_fewshot'] = str(task_config['num_fewshots'])
 
         return GenerationConfig(
             generation_args=args,
@@ -207,55 +224,60 @@ class LMEvalAdapter(BaseEvaluationAdapter):
     ) -> List[EvaluationResult]:
         """Build EvaluationResult list for a single task."""
         task_results = raw_data['results'][task_name]
-        task_config = raw_data.get('configs', {}).get(task_name, {})
-        higher_is_better = raw_data.get('higher_is_better', {}).get(
-            task_name, {}
-        )
-        n_samples = raw_data.get('n-samples', {}).get(task_name, {})
+        task_config = self._get_task_config(raw_data, task_name)
 
         source_data = self._build_source_data(task_config, task_name)
-        gen_config = self._build_generation_config(task_config)
-        eval_timestamp = raw_data.get('date')
+        gen_config = self._build_generation_config(raw_data, task_config)
+
+        config_general = raw_data.get('config_general', {})
+        eval_timestamp = config_general.get('start_time')
         if eval_timestamp is not None:
             eval_timestamp = str(int(eval_timestamp))
 
+        display_task_name = task_name.split('|')[0]
+
         results = []
-        for key, value in task_results.items():
-            if key in (
-                'alias',
-                'samples',
-                'name',
-                'sample_len',
-                'sample_count',
-            ):
-                continue
-            if '_stderr,' in key:
+        for metric_key, value in task_results.items():
+            if '_stderr' in metric_key:
                 continue
             if not isinstance(value, (int, float)):
                 continue
 
-            if ',' in key:
-                metric_name, filter_name = key.split(',', 1)
-            else:
-                metric_name = key
-                filter_name = 'none'
+            metric_root = (
+                metric_key.split(':')[0] if ':' in metric_key else metric_key
+            )
+            metric_name = (
+                metric_root.split('@')[0] if '@' in metric_root else metric_root
+            )
 
-            stderr_key = f'{metric_name}_stderr,{filter_name}'
+            stderr_key = f'{metric_key}_stderr'
             stderr_val = task_results.get(stderr_key)
 
-            is_higher_better = higher_is_better.get(metric_name, True)
+            is_higher_better = True
+            metrics_config = task_config.get('metrics', [])
+            for metric_cfg in metrics_config:
+                if metric_cfg.get('metric_name') == metric_key:
+                    is_higher_better = metric_cfg.get('higher_is_better', True)
+                    break
 
             bounds = KNOWN_METRIC_BOUNDS.get(metric_name)
-
-            min_score = bounds[0] if bounds else None
-            max_score = bounds[1] if bounds else None
-
-            description = metric_name
-            if filter_name != 'none':
-                description = f'{metric_name} (filter: {filter_name})'
+            if bounds:
+                min_score = bounds[0]
+                max_score = bounds[1]
+            else:
+                metric_lower = metric_name.lower()
+                if any(
+                    pattern in metric_lower
+                    for pattern in ['acc', 'accuracy', 'precision', 'recall', 'f1', 'pass', 'avg']
+                ):
+                    min_score = 0.0
+                    max_score = 1.0
+                else:
+                    min_score = 0.0
+                    max_score = 1.0
 
             metric_config = MetricConfig(
-                evaluation_description=description,
+                evaluation_description=metric_key,
                 lower_is_better=not is_higher_better,
                 score_type=ScoreType.continuous,
                 min_score=min_score,
@@ -263,12 +285,10 @@ class LMEvalAdapter(BaseEvaluationAdapter):
             )
 
             uncertainty = None
-            num_samples = (
-                n_samples.get('effective')
-                or task_results.get('samples')
-                or task_results.get('sample_len')
-            )
-            # Only use stderr_val if it's a valid number (not 'N/A' or other strings)
+            num_samples = task_config.get('effective_num_docs')
+            if num_samples == -1:
+                num_samples = None
+
             valid_stderr = (
                 isinstance(stderr_val, (int, float)) and stderr_val is not None
             )
@@ -282,13 +302,9 @@ class LMEvalAdapter(BaseEvaluationAdapter):
                     num_samples=num_samples,
                 )
 
-            eval_name = task_name
-            if filter_name != 'none':
-                eval_name = f'{task_name}/{filter_name}'
-
             results.append(
                 EvaluationResult(
-                    evaluation_name=eval_name,
+                    evaluation_name=display_task_name,
                     source_data=source_data,
                     evaluation_timestamp=eval_timestamp,
                     metric_config=metric_config,
@@ -313,7 +329,8 @@ class LMEvalAdapter(BaseEvaluationAdapter):
         model_info = self._extract_model_info(raw_data, metadata_args)
 
         retrieved_timestamp = get_current_unix_timestamp()
-        eval_timestamp = raw_data.get('date')
+        config_general = raw_data.get('config_general', {})
+        eval_timestamp = config_general.get('start_time')
         if eval_timestamp is not None:
             eval_timestamp = str(int(eval_timestamp))
 
@@ -325,15 +342,17 @@ class LMEvalAdapter(BaseEvaluationAdapter):
         )
         evaluator_relationship = EvaluatorRelationship(evaluator_rel_str)
 
-        library_version = str(raw_data.get('lm_eval_version', ''))
+        library_version = str(config_general.get('lighteval_sha', ''))
+        if library_version in ('?', ''):
+            library_version = ''
         eval_library = EvalLibrary(
-            name=metadata_args.get('eval_library_name', 'lm_eval'),
+            name=metadata_args.get('eval_library_name', 'lighteval'),
             version=library_version
             or metadata_args.get('eval_library_version', 'unknown'),
         )
 
         source_metadata = SourceMetadata(
-            source_name='lm-evaluation-harness',
+            source_name='lighteval',
             source_type=SourceType.evaluation_run,
             source_organization_name=metadata_args.get(
                 'source_organization_name', ''
@@ -346,12 +365,6 @@ class LMEvalAdapter(BaseEvaluationAdapter):
             ),
             evaluator_relationship=evaluator_relationship,
         )
-
-        # Store metadata so callers can find sample files after transform
-        self._eval_metadata[evaluation_id] = {
-            'parent_dir': metadata_args.get('parent_eval_output_dir'),
-            'task_name': task_name,
-        }
 
         return EvaluationLog(
             schema_version=SCHEMA_VERSION,
@@ -367,20 +380,13 @@ class LMEvalAdapter(BaseEvaluationAdapter):
     def transform_from_file(
         self, file_path: Union[str, Path], metadata_args: Dict[str, Any]
     ) -> List[EvaluationLog]:
-        """Transform a lm-eval results JSON file into EvaluationLogs.
+        """Transform a lighteval results JSON file into EvaluationLogs.
 
         Returns one EvaluationLog per leaf task in the results file.
         """
         file_path = Path(file_path)
         raw_data = self._load_file(file_path)
         tasks = self._get_tasks(raw_data)
-
-        # Pass the parent directory so instance-level adapter can find samples files
-        if 'parent_eval_output_dir' not in metadata_args:
-            metadata_args = {
-                **metadata_args,
-                'parent_eval_output_dir': str(file_path.parent),
-            }
 
         results = []
         for task_name in tasks:
@@ -393,7 +399,7 @@ class LMEvalAdapter(BaseEvaluationAdapter):
     def transform_from_directory(
         self, dir_path: Union[str, Path], metadata_args: Dict[str, Any]
     ) -> List[EvaluationLog]:
-        """Transform all lm-eval results files in a directory.
+        """Transform all lighteval results files in a directory.
 
         Searches for results_*.json files recursively.
         """
