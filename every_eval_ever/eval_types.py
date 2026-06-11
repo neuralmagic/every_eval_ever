@@ -142,6 +142,18 @@ class ScoreDetails(BaseModel):
         None,
         description='Quantification of uncertainty around the reported score',
     )
+    completed_ids: list[str] | None = Field(
+        None,
+        description='Instance ids that finished processing (e.g. SWE-bench evaluation.json)',
+    )
+    submitted_ids: list[str] | None = Field(
+        None,
+        description='Instance ids that had a submission (e.g. SWE-bench evaluation.json)',
+    )
+    resolved_ids: list[str] | None = Field(
+        None,
+        description='Instance ids that passed verification (e.g. SWE-bench evaluation.json)',
+    )
 
 
 class AvailableTool(BaseModel):

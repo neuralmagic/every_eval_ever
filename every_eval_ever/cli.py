@@ -133,6 +133,38 @@ def _cmd_convert_lighteval(args: argparse.Namespace) -> int:
     print(f'Converted {len(logs)} evaluation log(s).')
     return 0
 
+
+def _cmd_convert_swebench(args: argparse.Namespace) -> int:
+    from every_eval_ever.converters.swebench.adapter import SWEBenchAdapter
+
+    adapter = SWEBenchAdapter()
+    metadata = _common_metadata(args)
+    metadata['model_id'] = args.model_id
+    if args.benchmark_name:
+        metadata['benchmark_name'] = args.benchmark_name
+    if args.hf_repo:
+        metadata['hf_repo'] = args.hf_repo
+
+    log_path = Path(args.log_path)
+    metadata['parent_eval_output_dir'] = str(
+        log_path.parent if log_path.is_file() else log_path
+    )
+
+    if log_path.is_file():
+        logs = adapter.transform_from_file(log_path, metadata)
+    elif log_path.is_dir():
+        logs = adapter.transform_from_directory(log_path, metadata)
+    else:
+        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+    output_dir = Path(args.output_dir)
+    for log in logs:
+        print(_write_log(log, output_dir))
+
+    print(f'Converted {len(logs)} evaluation log(s).')
+    return 0
+
+
 def _cmd_convert_inspect(args: argparse.Namespace) -> int:
     from every_eval_ever.converters.inspect.adapter import (
         InspectAIAdapter,
@@ -354,7 +386,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest='source', required=True
     )
 
-    for source in ['lm_eval', 'inspect', 'helm', 'alpaca_eval', 'lighteval']:
+    for source in ['lm_eval', 'inspect', 'helm', 'alpaca_eval', 'lighteval', 'swebench']:
         source_parser = convert_subparsers.add_parser(
             source,
             help=f'Convert {source} logs',
@@ -462,6 +494,35 @@ def build_parser() -> argparse.ArgumentParser:
                 default=None,
                 help='Inference engine version to record in model_info.inference_engine.version.',
             )
+
+        if source == 'swebench':
+            source_parser.add_argument(
+                '--model_id',
+                '--model-id',
+                required=True,
+                help=(
+                    'Model identifier (e.g. org/model). Required because SWE-bench '
+                    'evaluation.json summaries do not include model metadata.'
+                ),
+            )
+            source_parser.add_argument(
+                '--benchmark_name',
+                '--benchmark-name',
+                default=None,
+                help=(
+                    'Benchmark label for dataset_name and metrics (default: SWE-bench).'
+                ),
+            )
+            source_parser.add_argument(
+                '--hf_repo',
+                '--hf-repo',
+                default=None,
+                help=(
+                    'Hugging Face dataset repo id for source_data (default: '
+                    'princeton-nlp/SWE-bench).'
+                ),
+            )
+
     return parser
 
 
@@ -503,6 +564,8 @@ def main(argv: list[str] | None = None) -> int:
             _cmd_convert_alpaca_eval(args)
         if args.source == 'lighteval':
             _cmd_convert_lighteval(args)
+        if args.source == 'swebench':
+            return _cmd_convert_swebench(args)
 
     if args.average_scores:
         _cmd_average_scores(args, current_time)

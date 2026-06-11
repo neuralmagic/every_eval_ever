@@ -32,6 +32,7 @@ class SupportedLibrary(Enum):
     INSPECT_AI = 'inspect-ai'
     HELM = 'helm'
     LIGHTEVAL = 'lighteval'
+    SWE_BENCH = 'swebench'
     CUSTOM = 'custom'
 
 

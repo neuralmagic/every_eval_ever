@@ -6,7 +6,7 @@
 
 - 📋 **A metadata schema** ([`eval.schema.json`](eval.schema.json)) that defines the information needed for meaningful comparison of evaluation results, including [instance-level data](instance_level_eval.schema.json)
 - 🔧 **Validation** that checks data against the schema before it enters the repository
-- 🔌 **Converters** for [Inspect AI](every_eval_ever/converters/inspect/), [HELM](every_eval_ever/converters/helm/), and [lm-eval-harness](every_eval_ever/converters/lm_eval/), so you can transform your existing evaluation logs into the standard format
+- 🔌 **Converters** for [Inspect AI](every_eval_ever/converters/inspect/), [HELM](every_eval_ever/converters/helm/), [lm-eval-harness](every_eval_ever/converters/lm_eval/), [LightEval](every_eval_ever/converters/lighteval/), and [SWE-bench](every_eval_ever/converters/swebench/), so you can transform your existing evaluation logs into the standard format
 
 Install the package:
 
@@ -19,6 +19,8 @@ Optional converter dependencies:
 ```bash
 pip install 'every-eval-ever[inspect]'
 pip install 'every-eval-ever[helm]'
+pip install 'every-eval-ever[lighteval]'
+pip install 'every-eval-ever[swebench]'
 pip install 'every-eval-ever[all]'
 ```
 
@@ -291,13 +293,34 @@ uv run python post_codegen.py
 
 ## 🔌 Eval Converters
 
-We have prepared converters to make adapting to our schema as easy as possible. At the moment, we support converting local evaluation harness logs from `Inspect AI`, `HELM` and `lm-evaluation-harness` into our unified schema. Each converter produces aggregate JSON and optionally instance-level JSONL output.
+We have prepared converters to make adapting to our schema as easy as possible. At the moment, we support converting local evaluation harness logs from `Inspect AI`, `HELM`, `lm-evaluation-harness`, `LightEval`, and `SWE-bench` into our unified schema. Each converter produces aggregate JSON and optionally instance-level JSONL output.
 
 | Framework | Command | Instance-Level JSONL |
 |---|---|---|
 | [Inspect AI](every_eval_ever/converters/inspect/) | `every_eval_ever convert inspect --log_path <path>` | Yes, if samples in log |
 | [HELM](every_eval_ever/converters/helm/) | `every_eval_ever convert helm --log_path <path>` | Always |
 | [lm-evaluation-harness](every_eval_ever/converters/lm_eval/) | `every_eval_ever convert lm_eval --log_path <path> --include_samples` | With `--include_samples` |
+| [LightEval](every_eval_ever/converters/lighteval/) | `every_eval_ever convert lighteval --log_path <path>` | No |
+| [SWE-bench](every_eval_ever/converters/swebench/) | `every_eval_ever convert swebench --log_path <path> --model_id <model>` | No |
+
+### Averaging Multiple Seed Runs
+
+When running evaluations across multiple random seeds, you can automatically average the scores using the `--average_scores` flag with any converter:
+
+```bash
+every_eval_ever convert lm_eval --log_path results/ --output_dir data --average_scores
+```
+
+This will:
+1. Convert all evaluation logs to the unified schema
+2. Group results by model and benchmark
+3. Compute average scores across seeds with uncertainty estimates (standard error)
+4. Generate additional merged result files with averaged metrics
+
+The averaging functionality is compatible with all converters and automatically handles:
+- Multiple seed runs per benchmark
+- Tasks with subtasks (computes hierarchical averages)
+- Uncertainty quantification via standard error
 
 For full CLI usage and required input files, see the [Eval Converters README](every_eval_ever/converters/README.md).
 

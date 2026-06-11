@@ -1,5 +1,5 @@
 ## Automatic Evaluation Log Converters
-A collection of scripts to convert evaluation logs from local evaluation frameworks (e.g., `Inspect AI` and `lm-eval-harness`) and public leaderboards (e.g., AlpacaEval) into the unified Every Eval Ever schema.
+A collection of scripts to convert evaluation logs from local evaluation frameworks (e.g., `Inspect AI`, `lm-eval-harness`, `LightEval`, and `SWE-bench`) and public leaderboards (e.g., AlpacaEval) into the unified Every Eval Ever schema.
 
 ### Installation
 
@@ -9,6 +9,8 @@ Install dependencies for the converter(s) you need:
 uv sync                   # core dependencies only (includes lm-eval)
 uv sync --extra inspect   # + Inspect AI
 uv sync --extra helm      # + HELM
+uv sync --extra lighteval # + LightEval
+uv sync --extra swebench  # + SWE-bench
 uv sync --extra all       # + all
 ```
 
@@ -271,3 +273,118 @@ options:
   --version {v1,v2}            Which leaderboard to convert. Omit to convert both (default).
   --output_dir OUTPUT_DIR      Base output directory (default: data).
 ```
+
+## LightEval
+
+The conversion script from `LightEval` evaluation logs to the unified schema can be run using `every_eval_ever convert lighteval`.
+
+Using the `--log_path` argument, you can specify:
+- A single LightEval results file (typically `results.json`)
+- A directory containing LightEval results files
+
+Example command:
+
+```bash
+uv run --extra lighteval every_eval_ever convert lighteval --log_path tests/data/lighteval/results.json --output_dir data
+```
+
+Or for a directory:
+
+```bash
+uv run --extra lighteval every_eval_ever convert lighteval --log_path path/to/lighteval/results/ --output_dir data
+```
+
+Full manual for conversion:
+
+```bash
+usage: every_eval_ever convert lighteval [-h] --log_path LOG_PATH
+                                        [--output_dir OUTPUT_DIR]
+                                        [--source_organization_name SOURCE_ORGANIZATION_NAME]
+                                        [--evaluator_relationship {first_party,third_party,collaborative,other}]
+                                        [--source_organization_url SOURCE_ORGANIZATION_URL]
+                                        [--source_organization_logo_url SOURCE_ORGANIZATION_LOGO_URL]
+                                        [--inference_engine INFERENCE_ENGINE]
+                                        [--inference_engine_version INFERENCE_ENGINE_VERSION]
+                                        [--eval_library_name EVAL_LIBRARY_NAME]
+                                        [--eval_library_version EVAL_LIBRARY_VERSION]
+
+options:
+  -h, --help            show this help message and exit
+  --log_path LOG_PATH   Path to LightEval results file or directory
+  --output_dir OUTPUT_DIR
+                        Output directory for converted files
+  --inference_engine INFERENCE_ENGINE
+                        Override inference engine name (e.g. 'vllm', 'transformers')
+  --inference_engine_version INFERENCE_ENGINE_VERSION
+                        Inference engine version (e.g. '0.6.0')
+```
+
+## SWE-bench
+
+The SWE-bench converter transforms SWE-bench evaluation results into the unified schema. SWE-bench is a benchmark for evaluating software engineering agents on real-world GitHub issues.
+
+**Important**: SWE-bench evaluation summaries (`evaluation.json`) do not include model metadata, so you must provide the `--model_id` argument.
+
+Using the `--log_path` argument, you can specify:
+- A single SWE-bench `evaluation.json` file
+- A directory containing SWE-bench evaluation files
+
+Example command:
+
+```bash
+uv run every_eval_ever convert swebench --log_path tests/data/swebench/evaluation.json --model_id my-org/my-model --output_dir data
+```
+
+Or for a directory:
+
+```bash
+uv run every_eval_ever convert swebench --log_path path/to/swebench/results/ --model_id my-org/my-model --output_dir data
+```
+
+Optional arguments:
+- `--benchmark_name`: Override the benchmark label (default: `SWE-bench`)
+- `--hf_repo`: Specify the Hugging Face dataset repo (default: `princeton-nlp/SWE-bench`)
+
+Full manual for conversion:
+
+```bash
+usage: every_eval_ever convert swebench [-h] --log_path LOG_PATH
+                                       --model_id MODEL_ID
+                                       [--output_dir OUTPUT_DIR]
+                                       [--benchmark_name BENCHMARK_NAME]
+                                       [--hf_repo HF_REPO]
+                                       [--source_organization_name SOURCE_ORGANIZATION_NAME]
+                                       [--evaluator_relationship {first_party,third_party,collaborative,other}]
+                                       [--source_organization_url SOURCE_ORGANIZATION_URL]
+                                       [--source_organization_logo_url SOURCE_ORGANIZATION_LOGO_URL]
+                                       [--eval_library_name EVAL_LIBRARY_NAME]
+                                       [--eval_library_version EVAL_LIBRARY_VERSION]
+
+options:
+  -h, --help            show this help message and exit
+  --log_path LOG_PATH   Path to SWE-bench evaluation.json file or directory
+  --model_id MODEL_ID   Model identifier (e.g. org/model) - required because
+                        SWE-bench summaries do not include model metadata
+  --output_dir OUTPUT_DIR
+                        Output directory for converted files
+  --benchmark_name BENCHMARK_NAME
+                        Benchmark label for dataset_name (default: SWE-bench)
+  --hf_repo HF_REPO     Hugging Face dataset repo (default: princeton-nlp/SWE-bench)
+```
+
+## Averaging Multiple Seed Runs
+
+All converters support the `--average_scores` flag to automatically compute averages across multiple random seed runs:
+
+```bash
+uv run every_eval_ever convert lm_eval --log_path results/ --output_dir data --average_scores
+```
+
+This feature:
+- Groups evaluation results by model and benchmark
+- Computes mean scores across all seed runs
+- Calculates uncertainty estimates (standard error) for each averaged metric
+- Handles hierarchical task structures (tasks with subtasks)
+- Generates additional merged result files with averaged metrics
+
+The averaging is performed after conversion and works with any evaluation framework (lm-eval, lighteval, inspect, etc.).
