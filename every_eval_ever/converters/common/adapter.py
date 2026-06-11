@@ -31,6 +31,7 @@ class SupportedLibrary(Enum):
     LM_EVAL = 'lm-evaluation-harness'
     INSPECT_AI = 'inspect-ai'
     HELM = 'helm'
+    LIGHTEVAL = 'lighteval'
     CUSTOM = 'custom'
 
 

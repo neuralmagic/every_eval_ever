@@ -108,6 +108,33 @@ def _cmd_convert_lm_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_convert_lighteval(args: argparse.Namespace) -> int:
+    from every_eval_ever.converters.lighteval.adapter import LightEvalAdapter
+
+    adapter = LightEvalAdapter()
+    metadata = _common_metadata(args)
+    if args.inference_engine:
+        metadata['inference_engine'] = args.inference_engine
+    if args.inference_engine_version:
+        metadata['inference_engine_version'] = args.inference_engine_version
+
+    log_path = Path(args.log_path)
+    if log_path.is_file():
+        logs = adapter.transform_from_file(log_path, metadata)
+    elif log_path.is_dir():
+        logs = adapter.transform_from_directory(log_path, metadata)
+    else:
+        raise FileNotFoundError(f'Path is not a file or directory: {log_path}')
+
+    output_dir = Path(args.output_dir)
+    for log in logs:
+        eval_uuid = str(uuid.uuid4())
+        print(_write_log(log, output_dir, eval_uuid=eval_uuid))
+
+    print(f'Converted {len(logs)} evaluation log(s).')
+    return 0
+
+
 def _cmd_convert_inspect(args: argparse.Namespace) -> int:
     from every_eval_ever.converters.inspect.adapter import (
         InspectAIAdapter,
@@ -241,6 +268,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             'Examples:\n'
             '  every_eval_ever convert lm_eval --log_path results.json --output_dir data\n'
+            '  every_eval_ever convert lighteval --log_path results_run_dir --output_dir data\n'
             '  every_eval_ever convert inspect --log_path inspect_log.json --output_dir data\n'
             '  every_eval_ever convert helm --log_path helm_run_dir --output_dir data'
         ),
@@ -298,7 +326,13 @@ def build_parser() -> argparse.ArgumentParser:
         dest='source', required=True
     )
 
-    for source in ['lm_eval', 'inspect', 'helm', 'alpaca_eval']:
+    for source in [
+        'lm_eval',
+        'lighteval',
+        'inspect',
+        'helm',
+        'alpaca_eval',
+    ]:
         source_parser = convert_subparsers.add_parser(
             source,
             help=f'Convert {source} logs',
@@ -385,6 +419,20 @@ def build_parser() -> argparse.ArgumentParser:
                 help='Inference engine version to record in model_info.inference_engine.version.',
             )
 
+        if source == 'lighteval':
+            source_parser.add_argument(
+                '--inference_engine',
+                '--inference-engine',
+                default=None,
+                help='Override inferred inference engine (e.g. vllm, transformers).',
+            )
+            source_parser.add_argument(
+                '--inference_engine_version',
+                '--inference-engine-version',
+                default=None,
+                help='Inference engine version to record in model_info.inference_engine.version.',
+            )
+
     return parser
 
 
@@ -415,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == 'convert':
         if args.source == 'lm_eval':
             return _cmd_convert_lm_eval(args)
+        if args.source == 'lighteval':
+            return _cmd_convert_lighteval(args)
         if args.source == 'inspect':
             return _cmd_convert_inspect(args)
         if args.source == 'helm':

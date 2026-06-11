@@ -1,5 +1,5 @@
 ## Automatic Evaluation Log Converters
-A collection of scripts to convert evaluation logs from local evaluation frameworks (e.g., `Inspect AI` and `lm-eval-harness`) and public leaderboards (e.g., AlpacaEval) into the unified Every Eval Ever schema.
+A collection of scripts to convert evaluation logs from local evaluation frameworks (e.g., `Inspect AI`, `lm-eval-harness`, and `lighteval`) and public leaderboards (e.g., AlpacaEval) into the unified Every Eval Ever schema.
 
 ### Installation
 
@@ -171,7 +171,6 @@ Using the `--log_path` argument, you can run a command like this:
 uv run every_eval_ever convert lm_eval --log_path tests/data/lm_eval/results_2026-01-21T03-44-18.458309.json
 ```
 
-
 Full manual for conversion of your own lm-eval evaluation log into unified is available below:
 
 ```bash
@@ -213,6 +212,75 @@ options:
   --eval_library_name EVAL_LIBRARY_NAME
                         Name of the evaluation library (e.g. inspect_ai,
                         lm_eval, helm)
+  --eval_library_version EVAL_LIBRARY_VERSION
+                        Version of the evaluation library
+```
+
+## lighteval
+
+The conversion script from `lighteval` evaluation logs to the unified schema can be run using `every_eval_ever/converters/lighteval/__main__.py`.
+
+Using the `--log_path` argument, you can provide either:
+- A lighteval results JSON file (e.g., `results_2026-05-11T07-33-49.106520.json`)
+- A directory containing multiple lighteval results files
+
+The command for converting a lighteval evaluation log:
+
+```bash
+uv run every_eval_ever convert lighteval --log_path tests/data/lighteval/results_2026-05-11T07-33-49.106520.json
+```
+
+To convert all lighteval results in a directory:
+
+```bash
+uv run every_eval_ever convert lighteval --log_path path/to/lighteval/results/directory
+```
+
+The lighteval adapter automatically:
+- Parses model provider and pretrained model name from the `model_name` field
+- Extracts generation parameters from `model_config.generation_parameters`
+- Handles tasks with seed suffixes (e.g., `aime25|0`) by extracting the base task name
+- Infers inference engine from the model provider (can be overridden with `--inference_engine`)
+- Resolves metric configurations including bounds and directionality (`higher_is_better`)
+
+Full manual for conversion of your own lighteval evaluation log into unified is available below:
+
+```bash
+usage: __main__.py [-h] --log_path LOG_PATH [--output_dir OUTPUT_DIR]
+                   [--source_organization_name SOURCE_ORGANIZATION_NAME]
+                   [--evaluator_relationship {first_party,third_party,collaborative,other}]
+                   [--source_organization_url SOURCE_ORGANIZATION_URL]
+                   [--source_organization_logo_url SOURCE_ORGANIZATION_LOGO_URL]
+                   [--inference_engine INFERENCE_ENGINE]
+                   [--inference_engine_version INFERENCE_ENGINE_VERSION]
+                   [--eval_library_name EVAL_LIBRARY_NAME]
+                   [--eval_library_version EVAL_LIBRARY_VERSION]
+
+Convert lighteval output to every_eval_ever format
+
+options:
+  -h, --help            show this help message and exit
+  --log_path LOG_PATH   Path to lighteval results JSON file or directory
+                        containing results files
+  --output_dir OUTPUT_DIR
+                        Output directory for converted files
+  --source_organization_name SOURCE_ORGANIZATION_NAME
+                        Name of the organization that ran the evaluation
+  --evaluator_relationship {first_party,third_party,collaborative,other}
+                        Relationship of the evaluator to the model
+  --source_organization_url SOURCE_ORGANIZATION_URL
+                        URL of the source organization
+  --source_organization_logo_url SOURCE_ORGANIZATION_LOGO_URL
+                        Logo of the source organization
+  --inference_engine INFERENCE_ENGINE
+                        Override inferred inference engine (e.g. 'vllm',
+                        'transformers'). Auto-detected from model provider when
+                        possible.
+  --inference_engine_version INFERENCE_ENGINE_VERSION
+                        Inference engine version (e.g. '0.6.0'). Not available
+                        from lighteval logs, so must be provided manually.
+  --eval_library_name EVAL_LIBRARY_NAME
+                        Name of the evaluation library (default: lighteval)
   --eval_library_version EVAL_LIBRARY_VERSION
                         Version of the evaluation library
 ```
