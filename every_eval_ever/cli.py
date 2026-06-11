@@ -270,7 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             'Examples:\n'
             '  every_eval_ever convert lm_eval --log_path results.json --output_dir data\n'
-            '  every_eval_ever convert lm_eval --log_path results.json --output_dir data\n --average-scores'
+            '  every_eval_ever convert lm_eval --log_path results.json --output_dir data --average-scores\n'
             '  every_eval_ever convert inspect --log_path inspect_log.json --output_dir data\n'
             '  every_eval_ever convert helm --log_path helm_run_dir --output_dir data'
         ),

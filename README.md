@@ -41,6 +41,19 @@ Leaderboard/evaluation data is split-up into files by individual model, and data
 2. The validation pipeline will automatically verify the data submitted in the pull request, but can also be manually triggered by typing ```/eee validate changed``` in a comment on the HF PR.
 3. An EvalEval member will review and merge your submission
 
+### Averaging Multiple Seed Runs
+
+When running evaluations across multiple random seeds, you can automatically compute averaged scores with uncertainty estimates using the `--average_scores` flag:
+
+```bash
+every_eval_ever convert lm_eval --log_path results.json --output_dir data --average_scores
+```
+
+This merges evaluation results from different seed runs, computing:
+- Mean score across all seeds
+- Standard error (across seeds)
+- Preservation of individual seed scores in `score_details.details`
+
 ### PR Naming Convention
 
 Use these prefixes in your pull request titles:
@@ -298,6 +311,8 @@ We have prepared converters to make adapting to our schema as easy as possible. 
 | [Inspect AI](every_eval_ever/converters/inspect/) | `every_eval_ever convert inspect --log_path <path>` | Yes, if samples in log |
 | [HELM](every_eval_ever/converters/helm/) | `every_eval_ever convert helm --log_path <path>` | Always |
 | [lm-evaluation-harness](every_eval_ever/converters/lm_eval/) | `every_eval_ever convert lm_eval --log_path <path> --include_samples` | With `--include_samples` |
+
+All converters support the `--average_scores` flag to automatically merge results from multiple seed runs into averaged scores with uncertainty estimates.
 
 For full CLI usage and required input files, see the [Eval Converters README](every_eval_ever/converters/README.md).
 

@@ -171,6 +171,20 @@ Using the `--log_path` argument, you can run a command like this:
 uv run every_eval_ever convert lm_eval --log_path tests/data/lm_eval/results_2026-01-21T03-44-18.458309.json
 ```
 
+### Averaging Multiple Seed Runs
+
+When you have multiple evaluation runs with different random seeds, use the `--average_scores` flag to automatically compute averaged results:
+
+```bash
+uv run every_eval_ever convert lm_eval --log_path results.json --output_dir data --average_scores
+```
+
+This feature:
+- Merges evaluation results from different seed runs
+- Computes mean scores and standard errors across seeds
+- Preserves individual seed values in the output for transparency
+- Works with any converter (lm_eval, inspect, helm)
+
 
 Full manual for conversion of your own lm-eval evaluation log into unified is available below:
 
@@ -215,6 +229,8 @@ options:
                         lm_eval, helm)
   --eval_library_version EVAL_LIBRARY_VERSION
                         Version of the evaluation library
+  --average_scores      Compute the average scores of the evaluation logs
+                        for a given benchmark across multiple seed runs
 ```
 
 ## AlpacaEval
