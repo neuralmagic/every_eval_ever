@@ -1,5 +1,5 @@
 ## Automatic Evaluation Log Converters
-A collection of scripts to convert evaluation logs from local evaluation frameworks (e.g., `Inspect AI` and `lm-eval-harness`) and public leaderboards (e.g., AlpacaEval) into the unified Every Eval Ever schema.
+A collection of scripts to convert evaluation logs from local evaluation frameworks (e.g., `Inspect AI`, `lm-eval-harness`, `lighteval`) and public leaderboards (e.g., AlpacaEval) into the unified Every Eval Ever schema.
 
 ### Installation
 
@@ -9,6 +9,7 @@ Install dependencies for the converter(s) you need:
 uv sync                   # core dependencies only (includes lm-eval)
 uv sync --extra inspect   # + Inspect AI
 uv sync --extra helm      # + HELM
+uv sync --extra lighteval # + lighteval
 uv sync --extra all       # + all
 ```
 
@@ -171,6 +172,15 @@ Using the `--log_path` argument, you can run a command like this:
 uv run every_eval_ever convert lm_eval --log_path tests/data/lm_eval/results_2026-01-21T03-44-18.458309.json
 ```
 
+### Averaging Multiple Seed Runs
+
+For evaluations run with multiple random seeds, add the `--average_scores` flag to automatically compute averaged results:
+
+```bash
+uv run every_eval_ever convert lm_eval --log_path results.json --output_dir data --average_scores
+```
+
+This groups results by benchmark/model/task and computes mean scores across seeds.
 
 Full manual for conversion of your own lm-eval evaluation log into unified is available below:
 
@@ -270,4 +280,62 @@ usage: every_eval_ever convert alpaca_eval [-h] [--log_path LOG_PATH]
 options:
   --version {v1,v2}            Which leaderboard to convert. Omit to convert both (default).
   --output_dir OUTPUT_DIR      Base output directory (default: data).
+```
+
+## lighteval
+
+The conversion script from `lighteval` evaluation logs to the unified schema can be run using `every_eval_ever/converters/lighteval/__main__.py`.
+
+Using the `--log_path` argument, you can specify either a single results JSON file or a directory containing multiple lighteval results:
+
+```bash
+uv run --extra lighteval every_eval_ever convert lighteval --log_path tests/data/lighteval/results_2026-05-11T07-33-49.106520.json
+```
+
+Or for a directory:
+
+```bash
+uv run --extra lighteval every_eval_ever convert lighteval --log_path path/to/lighteval/results_dir
+```
+
+Full manual for conversion of your own lighteval evaluation log into unified is available below:
+
+```bash
+usage: __main__.py [-h] --log_path LOG_PATH [--output_dir OUTPUT_DIR]
+                   [--source_organization_name SOURCE_ORGANIZATION_NAME]
+                   [--evaluator_relationship {first_party,third_party,collaborative,other}]
+                   [--source_organization_url SOURCE_ORGANIZATION_URL]
+                   [--source_organization_logo_url SOURCE_ORGANIZATION_LOGO_URL]
+                   [--inference_engine INFERENCE_ENGINE]
+                   [--inference_engine_version INFERENCE_ENGINE_VERSION]
+                   [--eval_library_name EVAL_LIBRARY_NAME]
+                   [--eval_library_version EVAL_LIBRARY_VERSION]
+                   [--average_scores]
+
+Convert lighteval output to every_eval_ever format
+
+options:
+  -h, --help            show this help message and exit
+  --log_path LOG_PATH   Path to results JSON file or directory containing
+                        results files
+  --output_dir OUTPUT_DIR
+                        Output directory for converted files
+  --source_organization_name SOURCE_ORGANIZATION_NAME
+                        Name of the organization that ran the evaluation
+  --evaluator_relationship {first_party,third_party,collaborative,other}
+                        Relationship of the evaluator to the model
+  --source_organization_url SOURCE_ORGANIZATION_URL
+                        URL of the source organization
+  --source_organization_logo_url SOURCE_ORGANIZATION_LOGO_URL
+                        Logo of the source organization
+  --inference_engine INFERENCE_ENGINE
+                        Override inference engine name (e.g. 'vllm',
+                        'transformers')
+  --inference_engine_version INFERENCE_ENGINE_VERSION
+                        Inference engine version (e.g. '0.6.0')
+  --eval_library_name EVAL_LIBRARY_NAME
+                        Name of the evaluation library (default: lighteval)
+  --eval_library_version EVAL_LIBRARY_VERSION
+                        Version of the evaluation library
+  --average_scores      Compute average scores across multiple seed runs
 ```
