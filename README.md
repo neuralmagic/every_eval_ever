@@ -6,7 +6,7 @@
 
 - 📋 **A metadata schema** ([`eval.schema.json`](eval.schema.json)) that defines the information needed for meaningful comparison of evaluation results, including [instance-level data](instance_level_eval.schema.json)
 - 🔧 **Validation** that checks data against the schema before it enters the repository
-- 🔌 **Converters** for [Inspect AI](every_eval_ever/converters/inspect/), [HELM](every_eval_ever/converters/helm/), and [lm-eval-harness](every_eval_ever/converters/lm_eval/), so you can transform your existing evaluation logs into the standard format
+- 🔌 **Converters** for [Inspect AI](every_eval_ever/converters/inspect/), [HELM](every_eval_ever/converters/helm/), [lm-eval-harness](every_eval_ever/converters/lm_eval/), and [SWE-bench](every_eval_ever/converters/swebench/), so you can transform your existing evaluation logs into the standard format
 
 Install the package:
 
@@ -277,7 +277,7 @@ Each result file captures not just scores but the context needed to interpret an
 }]
 ```
 
-The schema also supports **level-based metrics** (e.g. Low/Medium/High) and **uncertainty** reporting (confidence intervals, standard errors). See [`eval.schema.json`](eval.schema.json) for the full specification.
+The schema also supports **level-based metrics** (e.g. Low/Medium/High) and **uncertainty** reporting (confidence intervals, standard errors). For evaluations that track instance-level results (e.g. SWE-bench), `score_details` can optionally include `completed_ids`, `submitted_ids`, and `resolved_ids` arrays to maintain traceability to specific test instances. See [`eval.schema.json`](eval.schema.json) for the full specification.
 
 ## 🔧 Auto-generation of Pydantic Classes for Schema
 
@@ -298,6 +298,7 @@ We have prepared converters to make adapting to our schema as easy as possible. 
 | [Inspect AI](every_eval_ever/converters/inspect/) | `every_eval_ever convert inspect --log_path <path>` | Yes, if samples in log |
 | [HELM](every_eval_ever/converters/helm/) | `every_eval_ever convert helm --log_path <path>` | Always |
 | [lm-evaluation-harness](every_eval_ever/converters/lm_eval/) | `every_eval_ever convert lm_eval --log_path <path> --include_samples` | With `--include_samples` |
+| [SWE-bench](every_eval_ever/converters/swebench/) | `every_eval_ever convert swebench --log_path <path> --model_id <model>` | No |
 
 For full CLI usage and required input files, see the [Eval Converters README](every_eval_ever/converters/README.md).
 
