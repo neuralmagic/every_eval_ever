@@ -291,13 +291,14 @@ uv run python post_codegen.py
 
 ## 🔌 Eval Converters
 
-We have prepared converters to make adapting to our schema as easy as possible. At the moment, we support converting local evaluation harness logs from `Inspect AI`, `HELM` and `lm-evaluation-harness` into our unified schema. Each converter produces aggregate JSON and optionally instance-level JSONL output.
+We have prepared converters to make adapting to our schema as easy as possible. At the moment, we support converting local evaluation harness logs from `Inspect AI`, `HELM`, `lm-evaluation-harness`, and `lighteval` into our unified schema. Each converter produces aggregate JSON and optionally instance-level JSONL output.
 
 | Framework | Command | Instance-Level JSONL |
 |---|---|---|
 | [Inspect AI](every_eval_ever/converters/inspect/) | `every_eval_ever convert inspect --log_path <path>` | Yes, if samples in log |
 | [HELM](every_eval_ever/converters/helm/) | `every_eval_ever convert helm --log_path <path>` | Always |
 | [lm-evaluation-harness](every_eval_ever/converters/lm_eval/) | `every_eval_ever convert lm_eval --log_path <path> --include_samples` | With `--include_samples` |
+| [lighteval](every_eval_ever/converters/lighteval/) | `every_eval_ever convert lighteval --log_path <path>` | No |
 
 For full CLI usage and required input files, see the [Eval Converters README](every_eval_ever/converters/README.md).
 
