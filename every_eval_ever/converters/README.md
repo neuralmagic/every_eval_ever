@@ -271,3 +271,99 @@ options:
   --version {v1,v2}            Which leaderboard to convert. Omit to convert both (default).
   --output_dir OUTPUT_DIR      Base output directory (default: data).
 ```
+
+## SWE-bench
+
+The SWE-bench converter transforms aggregate evaluation summaries (e.g., `evaluation.json`)
+from the [SWE-bench harness](https://github.com/princeton-nlp/SWE-bench) into the unified schema.
+SWE-bench evaluates models on their ability to resolve real-world GitHub issues by generating
+patches that pass existing tests.
+
+The converter requires a `--model_id` argument because SWE-bench evaluation summaries do not
+include model metadata in the JSON output.
+
+### Usage
+
+Convert a single evaluation summary:
+
+```bash
+uv run every_eval_ever convert swebench \
+  --log_path evaluation.json \
+  --model_id "Qwen/Qwen3-Coder-Next" \
+  --output_dir data
+```
+
+Convert all JSON files in a directory:
+
+```bash
+uv run every_eval_ever convert swebench \
+  --log_path results/ \
+  --model_id "Qwen/Qwen3-Coder-Next" \
+  --output_dir data
+```
+
+Override the default benchmark name and HuggingFace repository:
+
+```bash
+uv run every_eval_ever convert swebench \
+  --log_path evaluation.json \
+  --model_id "Qwen/Qwen3-Coder-Next" \
+  --benchmark_name "SWE-bench Lite" \
+  --hf_repo "princeton-nlp/SWE-bench_Lite" \
+  --output_dir data
+```
+
+### Metrics Converted
+
+The adapter extracts the following metrics from SWE-bench evaluation summaries:
+
+| Metric | Description |
+|---|---|
+| Resolve Rate | Fraction of instances where the submitted patch passes verification (primary score, 0.0–1.0) |
+| Total Instances | Total number of evaluation instances |
+| Resolved Instances | Number of instances where patches passed verification |
+| Submitted Instances | Number of instances where patches were submitted |
+| Completed Instances | Number of instances that finished execution |
+| Unresolved Instances | Number of instances with failing patches |
+| Empty Patch Instances | Number of instances with empty patch submissions |
+| Error Instances | Number of instances that encountered errors during evaluation |
+
+The converter also captures instance IDs for completed, submitted, and resolved instances
+in the `score_details` section for traceability.
+
+### Full Argument List
+
+```
+usage: every_eval_ever convert swebench [-h] --log_path LOG_PATH
+                                        [--output_dir OUTPUT_DIR]
+                                        --model_id MODEL_ID
+                                        [--benchmark_name BENCHMARK_NAME]
+                                        [--hf_repo HF_REPO]
+                                        [--source_organization_name ...]
+                                        [--evaluator_relationship ...]
+                                        [--source_organization_url ...]
+                                        [--eval_library_name ...]
+                                        [--eval_library_version ...]
+
+options:
+  -h, --help            show this help message and exit
+  --log_path LOG_PATH   Path to evaluation.json file or directory containing JSON files
+  --output_dir OUTPUT_DIR
+                        Output directory for converted files
+  --model_id MODEL_ID   Model identifier (e.g. org/model). Required because
+                        SWE-bench evaluation.json summaries do not include model metadata.
+  --benchmark_name BENCHMARK_NAME
+                        Benchmark label for dataset_name and metrics (default: SWE-bench)
+  --hf_repo HF_REPO     Hugging Face dataset repo id for source_data
+                        (default: princeton-nlp/SWE-bench)
+  --source_organization_name SOURCE_ORGANIZATION_NAME
+                        Name of the organization that ran the evaluation
+  --evaluator_relationship {first_party,third_party,collaborative,other}
+                        Relationship of the evaluator to the model
+  --source_organization_url SOURCE_ORGANIZATION_URL
+                        URL of the source organization
+  --eval_library_name EVAL_LIBRARY_NAME
+                        Name of the evaluation library (default: swebench)
+  --eval_library_version EVAL_LIBRARY_VERSION
+                        Version of the evaluation library
+```
